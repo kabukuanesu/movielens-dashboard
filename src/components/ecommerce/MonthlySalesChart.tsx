@@ -1,170 +1,225 @@
 "use client";
 
-import { MoreDotIcon } from "@/icons";
 import { ApexOptions } from "apexcharts";
 import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
-import { useState } from "react";
-import { Dropdown } from "../ui/dropdown/Dropdown";
-import { DropdownItem } from "../ui/dropdown/DropdownItem";
+import { useEffect, useState } from "react";
+import Input from "@/components/form/input/InputField";
 
 // Dynamically import the ReactApexChart component
 const ReactApexChart = dynamic(() => import("react-apexcharts"), {
   ssr: false,
 });
 
-const monthKeys = [
-  "jan",
-  "feb",
-  "mar",
-  "apr",
-  "may",
-  "jun",
-  "jul",
-  "aug",
-  "sep",
-  "oct",
-  "nov",
-  "dec",
-] as const;
+interface TagData {
+  tag: string;
+  relevance_score: number;
+}
 
-export default function MonthlySalesChart() {
-  const t = useTranslations("ecommerce");
-  const tCommon = useTranslations("common");
+interface MovieResult {
+  movie_id: number;
+  title: string;
+  year: number | null;
+}
+
+export default function TopTagsChart() {
+  // Ideally, you would use a generic translation namespace, 
+  // but I'm keeping the structure similar to the original component.
+  const t = useTranslations("analytics.topTags");
+
+  // --- State for Movie Search ---
+  const [query, setQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<MovieResult[]>([]);
+  const [selectedMovie, setSelectedMovie] = useState<MovieResult | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // --- State for Chart Data ---
+  const [tags, setTags] = useState<TagData[]>([]);
+  const [isLoadingTags, setIsLoadingTags] = useState(false);
+
+  // --- 1. Handle Movie Search ---
+  useEffect(() => {
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`http://127.0.0.1:8000/movies/?query=${query}&limit=5`);
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data);
+        }
+      } catch (err) {
+        console.error("Search failed:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  // --- 2. Fetch Tags when a movie is selected ---
+  useEffect(() => {
+    if (!selectedMovie) {
+      setTags([]);
+      return;
+    }
+
+    const fetchTags = async () => {
+      setIsLoadingTags(true);
+      try {
+        const res = await fetch(`http://127.0.0.1:8000/analytics/movies/${selectedMovie.movie_id}/top-tags`);
+        if (res.ok) {
+          const data = await res.json();
+          setTags(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch tags:", err);
+      } finally {
+        setIsLoadingTags(false);
+      }
+    };
+
+    fetchTags();
+  }, [selectedMovie]);
+
+  // --- 3. Chart Configuration (Horizontal Bar) ---
   const options: ApexOptions = {
-    colors: ["#465fff"],
+    colors: ["#465fff"], // brand-500
     chart: {
       fontFamily: "Outfit, sans-serif",
       type: "bar",
-      height: 180,
-      toolbar: {
-        show: false,
-      },
+      height: 250,
+      toolbar: { show: false },
     },
     plotOptions: {
       bar: {
-        horizontal: false,
-        columnWidth: "39%",
-        borderRadius: 5,
+        horizontal: true, // Make it horizontal for tags
+        barHeight: "50%",
+        borderRadius: 4,
         borderRadiusApplication: "end",
       },
     },
     dataLabels: {
-      enabled: false,
+      enabled: true,
+      textAnchor: "start",
+      style: {
+        colors: ["#fff"],
+      },
+      formatter: function (val: number) {
+        return val.toString();
+      },
+      offsetX: 0,
     },
     stroke: {
       show: true,
-      width: 4,
+      width: 1,
       colors: ["transparent"],
     },
     xaxis: {
-      categories: monthKeys.map((key) => t(`months.${key}`)),
-      axisBorder: {
-        show: false,
-      },
-      axisTicks: {
-        show: false,
-      },
-      tickPlacement: "on",
-    },
-    legend: {
-      show: true,
-      position: "top",
-      horizontalAlign: "left",
-      fontFamily: "Outfit",
+      categories: tags.map((t) => t.tag),
+      axisBorder: { show: false },
+      axisTicks: { show: false },
     },
     yaxis: {
-      title: {
-        text: undefined,
+      labels: {
+        style: {
+          fontFamily: "Outfit",
+          fontSize: "14px",
+        },
       },
     },
     grid: {
-      yaxis: {
-        lines: {
-          show: true,
-        },
-      },
-    },
-    fill: {
-      opacity: 1,
-    },
-    states: {
-      hover: {
-        filter: {
-          type: "none",
-        },
-      },
-      active: {
-        filter: {
-          type: "none",
-        },
-      },
+      xaxis: { lines: { show: true } },
+      yaxis: { lines: { show: false } },
     },
     tooltip: {
-      x: {
-        show: false,
-      },
       y: {
-        formatter: (val: number) => `${val}`,
+        formatter: (val: number) => `${val} votes`,
       },
     },
   };
+
   const series = [
     {
-      name: t("monthlySales.series"),
-      data: [168, 385, 201, 298, 187, 195, 291, 110, 215, 390, 280, 112],
+      name: "Votes",
+      data: tags.map((t) => t.relevance_score),
     },
   ];
-  const [isOpen, setIsOpen] = useState(false);
-
-  const toggleDropdown = () => {
-    setIsOpen(!isOpen);
-  };
-
-  const closeDropdown = () => {
-    setIsOpen(false);
-  };
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-5 pt-5 sm:px-6 sm:pt-6 dark:border-gray-800 dark:bg-white/3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-          {t("monthlySales.title")}
-        </h3>
-        <div className="relative h-fit">
-          <button onClick={toggleDropdown} className="dropdown-toggle">
-            <MoreDotIcon className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300" />
-          </button>
-          <Dropdown
-            isOpen={isOpen}
-            onClose={closeDropdown}
-            className="w-40 p-2"
-          >
-            <DropdownItem
-              onItemClick={closeDropdown}
-              className="flex w-full rounded-lg text-left font-normal text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-            >
-              {tCommon("viewMore")}
-            </DropdownItem>
-            <DropdownItem
-              onItemClick={closeDropdown}
-              className="flex w-full rounded-lg text-left font-normal text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-            >
-              {tCommon("delete")}
-            </DropdownItem>
-          </Dropdown>
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-5 pt-5 pb-2 sm:px-6 sm:pt-6 dark:border-gray-800 dark:bg-white/3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+            {t("title") || "Top 5 Tags by Relevance"}
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {selectedMovie ? selectedMovie.title : "Select a movie to view its tags"}
+          </p>
+        </div>
+
+        {/* Movie Search Bar */}
+        <div className="relative w-full sm:w-72">
+          <Input
+            type="text"
+            placeholder="Search movie..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {isSearching && (
+            <span className="absolute end-4 top-3 text-xs text-gray-400">...</span>
+          )}
+          
+          {/* Dropdown Results */}
+          {searchResults.length > 0 && query.length >= 2 && (
+            <ul className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg dark:bg-gray-900 dark:border-gray-800 max-h-60 overflow-y-auto">
+              {searchResults.map((movie) => (
+                <li
+                  key={movie.movie_id}
+                  onClick={() => {
+                    setSelectedMovie(movie);
+                    setQuery(movie.title);
+                    setSearchResults([]);
+                  }}
+                  className="px-4 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 text-sm text-gray-700 dark:text-gray-300 border-b border-gray-50 dark:border-gray-800 last:border-0"
+                >
+                  {movie.title} {movie.year && <span className="text-gray-400">({movie.year})</span>}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 
+      {/* Chart Area */}
       <div className="custom-scrollbar max-w-full overflow-x-auto">
-        <div className="min-w-162.5 pl-2 xl:min-w-full">
-          <ReactApexChart
-            options={options}
-            series={series}
-            type="bar"
-            height={180}
-          />
-        </div>
+        {isLoadingTags ? (
+          <div className="flex h-62.5 items-center justify-center text-gray-400">
+            Loading tags...
+          </div>
+        ) : tags.length > 0 ? (
+          <div className="min-w-125">
+            <ReactApexChart
+              options={options}
+              series={series}
+              type="bar"
+              height={250}
+            />
+          </div>
+        ) : selectedMovie ? (
+          <div className="flex h-62.5 items-center justify-center text-gray-400">
+            No tags found for this movie.
+          </div>
+        ) : (
+          <div className="flex h-62.5 items-center justify-center text-gray-400">
+            Please search and select a movie above.
+          </div>
+        )}
       </div>
     </div>
   );

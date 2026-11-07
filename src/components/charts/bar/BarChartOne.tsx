@@ -39,7 +39,7 @@ export default function BarChartOne() {
       categories: [
         "Jan",
         "Feb",
-        "Mar",
+        "Anesu",
         "Apr",
         "May",
         "Jun",

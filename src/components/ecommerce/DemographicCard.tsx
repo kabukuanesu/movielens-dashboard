@@ -1,132 +1,150 @@
 "use client";
 
-import { MoreDotIcon } from "@/icons";
+import { ApexOptions } from "apexcharts";
 import { useTranslations } from "next-intl";
-import Image from "next/image";
-import { useState } from "react";
-import { Dropdown } from "../ui/dropdown/Dropdown";
-import { DropdownItem } from "../ui/dropdown/DropdownItem";
-import CountryMap from "./CountryMap";
+import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
 
-export default function DemographicCard() {
-  const t = useTranslations("ecommerce.demographic");
-  const tCommon = useTranslations("common");
-  const [isOpen, setIsOpen] = useState(false);
+const ReactApexChart = dynamic(() => import("react-apexcharts"), {
+  ssr: false,
+});
 
-  function toggleDropdown() {
-    setIsOpen(!isOpen);
-  }
+interface RawDist {
+  num_ratings: number;
+  frequency: number; // Number of movies that have this many ratings
+}
 
-  function closeDropdown() {
-    setIsOpen(false);
-  }
+export default function RatingsDistributionChart() {
+  const t = useTranslations("analytics.ratingsDistribution");
+  
+  const [isLoading, setIsLoading] = useState(true);
+  const [chartData, setChartData] = useState<{ label: string; count: number }[]>([]);
+
+  useEffect(() => {
+    const fetchDistribution = async () => {
+      try {
+        const res = await fetch(`http://127.0.0.1:8000/analytics/movies/rating-counts-distribution`);
+        if (res.ok) {
+          const rawData: RawDist[] = await res.json();
+          
+          // Bucket the data so we don't have 1000 bars
+          let buckets = {
+            "1 rating": 0,
+            "2 ratings": 0,
+            "3-5 ratings": 0,
+            "6-10 ratings": 0,
+            "11-50 ratings": 0,
+            "51-100 ratings": 0,
+            "101-500 ratings": 0,
+            "500+ ratings": 0,
+          };
+
+          rawData.forEach((row) => {
+            const n = row.num_ratings;
+            if (n === 1) buckets["1 rating"] += row.frequency;
+            else if (n === 2) buckets["2 ratings"] += row.frequency;
+            else if (n >= 3 && n <= 5) buckets["3-5 ratings"] += row.frequency;
+            else if (n >= 6 && n <= 10) buckets["6-10 ratings"] += row.frequency;
+            else if (n >= 11 && n <= 50) buckets["11-50 ratings"] += row.frequency;
+            else if (n >= 51 && n <= 100) buckets["51-100 ratings"] += row.frequency;
+            else if (n >= 101 && n <= 500) buckets["101-500 ratings"] += row.frequency;
+            else buckets["500+ ratings"] += row.frequency;
+          });
+
+          // Convert to array for chart
+          const formattedData = Object.entries(buckets).map(([label, count]) => ({
+            label,
+            count,
+          }));
+          
+          setChartData(formattedData);
+        }
+      } catch (err) {
+        console.error("Failed to fetch distribution:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDistribution();
+  }, []);
+
+  // Configure the Horizontal Bar Chart
+  const options: ApexOptions = {
+    colors: ["#465FFF"],
+    chart: {
+      fontFamily: "Outfit, sans-serif",
+      type: "bar",
+      height: 350,
+      toolbar: { show: false },
+    },
+    plotOptions: {
+      bar: {
+        horizontal: true,
+        barHeight: "60%",
+        borderRadius: 4,
+      },
+    },
+    dataLabels: {
+      enabled: false,
+    },
+    xaxis: {
+      categories: chartData.map((d) => d.label),
+      axisBorder: { show: false },
+      axisTicks: { show: false },
+      labels: {
+        formatter: (val) => Number(val).toLocaleString(),
+      },
+    },
+    yaxis: {
+      labels: {
+        style: { fontSize: "13px", fontWeight: 500 },
+      },
+    },
+    grid: {
+      xaxis: { lines: { show: true } },
+      yaxis: { lines: { show: false } },
+    },
+    tooltip: {
+      y: {
+        formatter: (val) => `${val.toLocaleString()} movies`,
+      },
+    },
+  };
+
+  const series = [
+    {
+      name: "Number of Movies",
+      data: chartData.map((d) => d.count),
+    },
+  ];
+
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 dark:border-gray-800 dark:bg-white/3">
-      <div className="flex justify-between">
+    <div className="rounded-2xl border border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-white/3">
+      <div className="shadow-default rounded-2xl bg-white px-5 pt-5 pb-5 sm:px-6 sm:pt-6 dark:bg-gray-900 relative">
         <div>
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-            {t("title")}
+            {t("title") || "Distribution of Total Ratings"}
           </h3>
           <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-            {t("subtitle")}
+            {t("subtitle") || "How many movies fall into each rating volume bucket."}
           </p>
         </div>
-
-        <div className="relative h-fit">
-          <button onClick={toggleDropdown} className="dropdown-toggle">
-            <MoreDotIcon className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300" />
-          </button>
-          <Dropdown
-            isOpen={isOpen}
-            onClose={closeDropdown}
-            className="w-40 p-2"
-          >
-            <DropdownItem
-              onItemClick={closeDropdown}
-              className="flex w-full rounded-lg text-left font-normal text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-            >
-              {tCommon("viewMore")}
-            </DropdownItem>
-            <DropdownItem
-              onItemClick={closeDropdown}
-              className="flex w-full rounded-lg text-left font-normal text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-            >
-              {tCommon("delete")}
-            </DropdownItem>
-          </Dropdown>
-        </div>
-      </div>
-      <div className="border-gary-200 my-6 overflow-hidden rounded-2xl border bg-gray-50 px-4 py-6 sm:px-6 dark:border-gray-800 dark:bg-gray-900">
-        <div
-          id="mapOne"
-          className="mapOne map-btn -mx-4 -my-6 h-53 w-63 2xsm:w-76.75 xsm:w-89.5 sm:-mx-6 md:w-167 lg:w-158.5 xl:w-98.25 2xl:w-138.5"
-        >
-          <CountryMap />
-        </div>
       </div>
 
-      <div className="space-y-5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-full max-w-8 items-center rounded-full">
-              <Image
-                width={48}
-                height={48}
-                src="/images/country/country-01.svg"
-                alt="usa"
-                className="w-full"
-              />
-            </div>
-            <div>
-              <p className="text-theme-sm font-semibold text-gray-800 dark:text-white/90">
-                {t("usa")}
-              </p>
-              <span className="block text-theme-xs text-gray-500 dark:text-gray-400">
-                {t("customers", { count: "2,379" })}
-              </span>
-            </div>
+      <div className="flex-1 w-full relative">
+        {isLoading ? (
+          <div className="flex h-full items-center justify-center text-gray-400">
+            Loading chart...
           </div>
-
-          <div className="flex w-full max-w-35 items-center gap-3">
-            <div className="relative block h-2 w-full max-w-25 rounded-sm bg-gray-200 dark:bg-gray-800">
-              <div className="absolute top-0 left-0 flex h-full w-[79%] items-center justify-center rounded-sm bg-brand-500 text-xs font-medium text-white"></div>
-            </div>
-            <p className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
-              79%
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-full max-w-8 items-center rounded-full">
-              <Image
-                width={48}
-                height={48}
-                className="w-full"
-                src="/images/country/country-02.svg"
-                alt="france"
-              />
-            </div>
-            <div>
-              <p className="text-theme-sm font-semibold text-gray-800 dark:text-white/90">
-                {t("france")}
-              </p>
-              <span className="block text-theme-xs text-gray-500 dark:text-gray-400">
-                {t("customers", { count: "589" })}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex w-full max-w-35 items-center gap-3">
-            <div className="relative block h-2 w-full max-w-25 rounded-sm bg-gray-200 dark:bg-gray-800">
-              <div className="absolute top-0 left-0 flex h-full w-[23%] items-center justify-center rounded-sm bg-brand-500 text-xs font-medium text-white"></div>
-            </div>
-            <p className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
-              23%
-            </p>
-          </div>
-        </div>
+        ) : (
+          <ReactApexChart
+            options={options}
+            series={series}
+            type="bar"
+            height={350}
+          />
+        )}
       </div>
     </div>
   );

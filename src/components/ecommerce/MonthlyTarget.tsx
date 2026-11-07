@@ -1,158 +1,216 @@
 "use client";
 
-import { MoreDotIcon } from "@/icons";
 import { ApexOptions } from "apexcharts";
 import { useTranslations } from "next-intl";
-import { Dropdown } from "../ui/dropdown/Dropdown";
-import { DropdownItem } from "../ui/dropdown/DropdownItem";
-
 import dynamic from "next/dynamic";
-import { useState } from "react";
-// Dynamically import the ReactApexChart component
+import { useEffect, useState } from "react";
+import Input from "@/components/form/input/InputField";
+
 const ReactApexChart = dynamic(() => import("react-apexcharts"), {
   ssr: false,
 });
 
-export default function MonthlyTarget() {
-  const [isOpen, setIsOpen] = useState(false);
-  const t = useTranslations("ecommerce.monthlyTarget");
-  const tCommon = useTranslations("common");
+interface MovieResult {
+  movie_id: number;
+  title: string;
+  year: number | null;
+}
 
-  const series = [75.55];
-  const options: ApexOptions = {
+interface RatingDist {
+  rating: number;
+  count: number;
+}
+
+export default function RatingDistribution() {
+  const t = useTranslations("analytics.ratingDistribution");
+
+  // Search State
+  const [query, setQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<MovieResult[]>([]);
+  const [selectedMovie, setSelectedMovie] = useState<MovieResult | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Data State
+  const [distribution, setDistribution] = useState<RatingDist[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // --- 1. Handle Movie Search ---
+  useEffect(() => {
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`http://127.0.0.1:8000/movies/?query=${query}&limit=5`);
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data);
+        }
+      } catch (err) {
+        console.error("Search failed:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  // --- 2. Fetch Rating Distribution ---
+  useEffect(() => {
+    if (!selectedMovie) {
+      setDistribution([]);
+      return;
+    }
+
+    const fetchDistribution = async () => {
+      setIsLoading(true);
+      try {
+        const res = await fetch(`http://127.0.0.1:8000/analytics/movies/${selectedMovie.movie_id}/rating-distribution`);
+        if (res.ok) {
+          const data = await res.json();
+          setDistribution(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch distribution:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDistribution();
+  }, [selectedMovie]);
+
+  // --- 3. Calculations for Radial Chart & Footer ---
+  let totalVotes = 0;
+  let weightedSum = 0;
+  
+  distribution.forEach((d) => {
+    totalVotes += d.count;
+    weightedSum += d.rating * d.count;
+  });
+
+  const avgRating = totalVotes > 0 ? (weightedSum / totalVotes) : 0;
+  // Calculate percentage for radial bar (avgRating out of 5 => percentage)
+  const percentage = (avgRating / 5) * 100;
+
+  // Find counts for specific stars to show at the bottom
+  const count5 = distribution.find((d) => d.rating === 5)?.count || 0;
+  const count4 = distribution.find((d) => d.rating === 4)?.count || 0;
+  const count3 = distribution.find((d) => d.rating === 3)?.count || 0;
+
+  // --- 4. Chart Configurations ---
+  const radialOptions: ApexOptions = {
     colors: ["#465FFF"],
     chart: {
       fontFamily: "Outfit, sans-serif",
       type: "radialBar",
       height: 330,
-      sparkline: {
-        enabled: true,
-      },
+      sparkline: { enabled: true },
     },
     plotOptions: {
       radialBar: {
         startAngle: -90,
         endAngle: 90,
-        hollow: {
-          size: "80%",
-        },
+        hollow: { size: "80%" },
         track: {
           background: "#E4E7EC",
           strokeWidth: "100%",
-          margin: 5, // margin is in pixels
+          margin: 5,
         },
         dataLabels: {
-          name: {
-            show: false,
-          },
+          name: { show: false },
           value: {
             fontSize: "36px",
             fontWeight: "600",
             offsetY: -35,
             color: "#1D2939",
-            formatter: function (val) {
-              return val + "%";
+            formatter: function () {
+              return avgRating.toFixed(2);
             },
           },
         },
       },
     },
-    fill: {
-      type: "solid",
-      colors: ["#465FFF"],
-    },
-    stroke: {
-      lineCap: "round",
-    },
-    labels: ["Progress"],
-  };
-
-  const toggleDropdown = () => {
-    setIsOpen(!isOpen);
-  };
-
-  const closeDropdown = () => {
-    setIsOpen(false);
+    fill: { type: "solid", colors: ["#465FFF"] },
+    stroke: { lineCap: "round" },
+    labels: ["Average"],
   };
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-white/3">
-      <div className="shadow-default rounded-2xl bg-white px-5 pt-5 pb-5 sm:px-6 sm:pt-6 sm:pb-11 dark:bg-gray-900">
-        <div className="flex justify-between">
+      <div className="shadow-default rounded-2xl bg-white px-5 pt-5 pb-5 sm:px-6 sm:pt-6 dark:bg-gray-900 relative">
+        
+        {/* Search Bar Overlay */}
+        <div className="relative z-10 mb-4 w-full">
+           <Input
+            type="text"
+            placeholder={t("searchPlaceholder") || "Search movie..."}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {isSearching && (
+            <span className="absolute end-4 top-3 text-xs text-gray-400">...</span>
+          )}
+          {searchResults.length > 0 && query.length >= 2 && (
+            <ul className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg dark:bg-gray-900 dark:border-gray-800 max-h-60 overflow-y-auto">
+              {searchResults.map((movie) => (
+                <li
+                  key={movie.movie_id}
+                  onClick={() => {
+                    setSelectedMovie(movie);
+                    setQuery(movie.title);
+                    setSearchResults([]);
+                  }}
+                  className="px-4 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 text-sm text-gray-700 dark:text-gray-300 border-b border-gray-50 dark:border-gray-800 last:border-0"
+                >
+                  {movie.title} {movie.year && <span className="text-gray-400">({movie.year})</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="flex justify-between items-center mb-2">
           <div>
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-              {t("title")}
+              {selectedMovie ? selectedMovie.title : (t("title") || "Rating Distribution")}
             </h3>
             <p className="mt-1 text-theme-sm font-normal text-gray-500 dark:text-gray-400">
-              {t("subtitle")}
+              {selectedMovie ? `Total Votes: ${totalVotes.toLocaleString()}` : "Select a movie to view ratings"}
             </p>
           </div>
-
-          <div className="relative h-fit">
-            <button onClick={toggleDropdown} className="dropdown-toggle">
-              <MoreDotIcon className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300" />
-            </button>
-            <Dropdown
-              isOpen={isOpen}
-              onClose={closeDropdown}
-              className="w-40 p-2"
-            >
-              <DropdownItem
-                onItemClick={closeDropdown}
-                className="flex w-full rounded-lg text-start font-normal text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-              >
-                {tCommon("viewMore")}
-              </DropdownItem>
-              <DropdownItem
-                onItemClick={closeDropdown}
-                className="flex w-full rounded-lg text-start font-normal text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-              >
-                {tCommon("delete")}
-              </DropdownItem>
-            </Dropdown>
-          </div>
         </div>
 
-        <div className="relative">
-          <div className="max-h-45 overflow-hidden" id="chartDarkStyle">
-            <ReactApexChart
-              options={options}
-              series={series}
-              type="radialBar"
-              height={330}
-            />
-          </div>
-
-          <span className="absolute bottom-2.5 left-1/2 -translate-x-1/2 rounded-full bg-success-50 px-3 py-1 text-xs font-medium text-success-600 dark:bg-success-500/15 dark:text-success-500">
-            +10%
-          </span>
+        <div className="relative flex justify-center">
+          {isLoading ? (
+             <div className="flex h-[330px] items-center justify-center text-gray-400">Loading chart...</div>
+          ) : selectedMovie && totalVotes > 0 ? (
+            <div className="max-h-45 overflow-hidden" id="chartDarkStyle">
+              <ReactApexChart
+                options={radialOptions}
+                series={[percentage]}
+                type="radialBar"
+                height={330}
+              />
+            </div>
+          ) : (
+             <div className="flex h-[330px] items-center justify-center text-gray-400">No ratings available.</div>
+          )}
         </div>
-        <p className="mx-auto mt-4.5 w-full max-w-95 text-center text-sm text-gray-500 sm:text-base dark:text-gray-400">
-          {t("earned", { amount: "$3287" })}
-        </p>
       </div>
 
+      {/* Footer stats replacing Target/Revenue/Today */}
       <div className="flex items-center justify-center gap-5 px-6 py-3 sm:gap-8 sm:py-5">
         <div>
           <p className="mb-1 text-center text-theme-xs text-gray-500 sm:text-sm dark:text-gray-400">
-            {t("target")}
+            {t("fiveStars") || "5 Stars"}
           </p>
-          <p className="flex items-center justify-center gap-1 text-base font-semibold text-gray-800 sm:text-lg dark:text-white/90">
-            $20K
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M7.26816 13.6632C7.4056 13.8192 7.60686 13.9176 7.8311 13.9176C7.83148 13.9176 7.83187 13.9176 7.83226 13.9176C8.02445 13.9178 8.21671 13.8447 8.36339 13.6981L12.3635 9.70076C12.6565 9.40797 12.6567 8.9331 12.3639 8.6401C12.0711 8.34711 11.5962 8.34694 11.3032 8.63973L8.5811 11.36L8.5811 2.5C8.5811 2.08579 8.24531 1.75 7.8311 1.75C7.41688 1.75 7.0811 2.08579 7.0811 2.5L7.0811 11.3556L4.36354 8.63975C4.07055 8.34695 3.59568 8.3471 3.30288 8.64009C3.01008 8.93307 3.01023 9.40794 3.30321 9.70075L7.26816 13.6632Z"
-                fill="#D92D20"
-              />
-            </svg>
+          <p className="text-center text-base font-semibold text-gray-800 sm:text-lg dark:text-white/90">
+            {count5.toLocaleString()}
           </p>
         </div>
 
@@ -160,24 +218,10 @@ export default function MonthlyTarget() {
 
         <div>
           <p className="mb-1 text-center text-theme-xs text-gray-500 sm:text-sm dark:text-gray-400">
-            {t("revenue")}
+            {t("fourStars") || "4 Stars"}
           </p>
-          <p className="flex items-center justify-center gap-1 text-base font-semibold text-gray-800 sm:text-lg dark:text-white/90">
-            $20K
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M7.60141 2.33683C7.73885 2.18084 7.9401 2.08243 8.16435 2.08243C8.16475 2.08243 8.16516 2.08243 8.16556 2.08243C8.35773 2.08219 8.54998 2.15535 8.69664 2.30191L12.6968 6.29924C12.9898 6.59203 12.9899 7.0669 12.6971 7.3599C12.4044 7.6529 11.9295 7.65306 11.6365 7.36027L8.91435 4.64004L8.91435 13.5C8.91435 13.9142 8.57856 14.25 8.16435 14.25C7.75013 14.25 7.41435 13.9142 7.41435 13.5L7.41435 4.64442L4.69679 7.36025C4.4038 7.65305 3.92893 7.6529 3.63613 7.35992C3.34333 7.06693 3.34348 6.59206 3.63646 6.29926L7.60141 2.33683Z"
-                fill="#039855"
-              />
-            </svg>
+          <p className="text-center text-base font-semibold text-gray-800 sm:text-lg dark:text-white/90">
+            {count4.toLocaleString()}
           </p>
         </div>
 
@@ -185,24 +229,10 @@ export default function MonthlyTarget() {
 
         <div>
           <p className="mb-1 text-center text-theme-xs text-gray-500 sm:text-sm dark:text-gray-400">
-            {t("today")}
+            {t("threeStars") || "3 Stars"}
           </p>
-          <p className="flex items-center justify-center gap-1 text-base font-semibold text-gray-800 sm:text-lg dark:text-white/90">
-            $20K
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M7.60141 2.33683C7.73885 2.18084 7.9401 2.08243 8.16435 2.08243C8.16475 2.08243 8.16516 2.08243 8.16556 2.08243C8.35773 2.08219 8.54998 2.15535 8.69664 2.30191L12.6968 6.29924C12.9898 6.59203 12.9899 7.0669 12.6971 7.3599C12.4044 7.6529 11.9295 7.65306 11.6365 7.36027L8.91435 4.64004L8.91435 13.5C8.91435 13.9142 8.57856 14.25 8.16435 14.25C7.75013 14.25 7.41435 13.9142 7.41435 13.5L7.41435 4.64442L4.69679 7.36025C4.4038 7.65305 3.92893 7.6529 3.63613 7.35992C3.34333 7.06693 3.34348 6.59206 3.63646 6.29926L7.60141 2.33683Z"
-                fill="#039855"
-              />
-            </svg>
+          <p className="text-center text-base font-semibold text-gray-800 sm:text-lg dark:text-white/90">
+            {count3.toLocaleString()}
           </p>
         </div>
       </div>

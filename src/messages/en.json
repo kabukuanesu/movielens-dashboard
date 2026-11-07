@@ -21,7 +21,7 @@
     },
     "items": {
       "dashboard": "Dashboard",
-      "ecommerceHome": "Ecommerce",
+      "ecommerceHome": "Movies Analysis",
       "analytics": "Analytics",
       "marketing": "Marketing",
       "crm": "CRM",
@@ -123,9 +123,9 @@
       "inboxDetails": "Details"
     },
     "widget": {
-      "title": "#1 Tailwind CSS Dashboard",
-      "description": "Leading Tailwind CSS Admin Template with 500+ UI Component and Pages.",
-      "purchasePlan": "Purchase Plan"
+      "title": "Movies Data Analytics",
+      "description": "A dashboard that provides insights and analysis of the Movie Lens dataset.",
+      "purchasePlan": "Movie Lens"
     }
   },
   "header": {
@@ -148,10 +148,14 @@
     "signOut": "Sign out"
   },
   "ecommerce": {
-    "title": "E-commerce Dashboard",
+    "title": "Movies Data Analytics",
     "metrics": {
-      "customers": "Customers",
-      "orders": "Orders"
+      "customers": "Movies",
+      "orders": "Genres",
+      "revenue": "Ratings",
+      "growth": "Growth",
+      "totalMovies": "Total Number of Movies",
+      "totalGenres": "Total Genres"
     },
     "months": {
       "jan": "Jan",
@@ -168,7 +172,7 @@
       "dec": "Dec"
     },
     "monthlySales": {
-      "title": "Monthly Sales",
+      "title": "Top Tags",
       "series": "Sales"
     },
     "monthlyTarget": {
@@ -224,6 +228,39 @@
       "bounceRate": "Bounce Rate",
       "visitDuration": "Visit Duration",
       "vsLastMonth": "Vs last month"
+    },
+    "topTags": {
+      "title": "Top Tags"
+    },
+    "topMovies": {
+      "title": "Top Rated Movies",
+      "subtitle": "Requires a minimum of 50 ratings to qualify."
+    },
+    "genreTags": {
+    "title": "Most Popular Tag per Genre",
+    "subtitle": "Based on the frequency of user tags applied to movies in each genre.",
+    "genre": "Genre",
+    "topTag": "Most Popular Tag",
+    "applications": "Applications"
+    },
+    "ratingDistribution": {
+    "title": "Rating Distribution",
+    "searchPlaceholder": "Search movie...",
+    "fiveStars": "5 Stars",
+    "fourStars": "4 Stars",
+    "threeStars": "3 Stars"
+    },
+    "ratingsDistribution": {
+    "title": "Distribution of Total Ratings",
+    "subtitle": "How many movies fall into each rating volume bucket."
+    },
+    "topGenreByYear": {
+    "title": "Top Genre by Year",
+    "subtitle": "The genre with the highest number of releases in a specific year."
+    },
+    "genreCoverage": {
+    "title": "Genre-wise Coverage of Movies",
+    "subtitle": "Total number of movies categorized under each genre."
     },
     "barChart": {
       "title": "Analytics",
