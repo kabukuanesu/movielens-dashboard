@@ -33,37 +33,16 @@ import {
 } from "./icons";
 import type { CalendarEvent, EventFormData } from "./types";
 
-const INITIAL_EVENTS: CalendarEvent[] = [
-  {
-    id: "1",
-    title: "Event Conf.",
-    start: new Date().toISOString().split("T")[0],
-    extendedProps: { calendar: "Danger" },
-  },
-  {
-    id: "2",
-    title: "Meeting",
-    start: new Date(Date.now() + 86400000).toISOString().split("T")[0],
-    extendedProps: { calendar: "Success" },
-  },
-  {
-    id: "3",
-    title: "Workshop",
-    start: new Date(Date.now() + 172800000).toISOString().split("T")[0],
-    end: new Date(Date.now() + 259200000).toISOString().split("T")[0],
-    extendedProps: { calendar: "Primary" },
-  },
-];
-
 const Calendar: React.FC = () => {
   const locale = useLocale();
   const isRtlLayout = isRtl(locale as Locale);
   const { theme } = useTheme();
 
-  const [events, setEvents] = useState<CalendarEvent[]>(INITIAL_EVENTS);
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
-    null,
-  );
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [selectedStartDate, setSelectedStartDate] = useState("");
   const [selectedEndDate, setSelectedEndDate] = useState("");
   const [currentView, setCurrentView] = useState("dayGridMonth");
@@ -74,49 +53,60 @@ const Calendar: React.FC = () => {
   const calendarContainerRef = useRef<HTMLDivElement>(null);
   const { isOpen, openModal, closeModal } = useModal();
 
+  // --- 1. Fetch User Role and Calendar Data ---
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        // FIX: Read token from cookies instead of localStorage
+        const token = document.cookie
+          .split("; ")
+          .find((row) => row.startsWith("access_token="))
+          ?.split("=")[1];
+
+        if (!token) {
+          throw new Error("No access token found. Please log in.");
+        }
+
+        const userRes = await fetch("http://127.0.0.1:8000/auth/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!userRes.ok) throw new Error("Not logged in");
+        const user = await userRes.json();
+        setUserRole(user.role.name);
+
+        // Fetch correct calendar data based on role
+        const endpoint =
+          user.role.name === "admin"
+            ? "/analytics/users/calendar-events"
+            : "/analytics/ratings/my-calendar-events";
+
+        const dataRes = await fetch(`http://127.0.0.1:8000${endpoint}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (dataRes.ok) {
+          const data = await dataRes.json();
+          setEvents(data);
+        }
+      } catch (err) {
+        console.error("Failed to load calendar data:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   const handleViewChange = (viewKey: string) => {
     setCurrentView(viewKey);
     calendarRef.current?.getApi()?.changeView(viewKey);
   };
 
-  const handleOpenAddModal = () => {
-    const currentDate = new Date();
-    const yyyy = currentDate.getFullYear();
-    const mm = String(currentDate.getMonth() + 1).padStart(2, "0");
-    const dd = String(currentDate.getDate()).padStart(2, "0");
-    const combineDate = `${yyyy}-${mm}-${dd}`;
-
-    setSelectedEvent(null);
-    setSelectedStartDate(combineDate);
-    setSelectedEndDate(combineDate);
-    openModal();
-  };
-
-  const handleDateSelect = (selectInfo: DateSelectInfo) => {
-    const startStr = selectInfo.startStr
-      ? selectInfo.startStr.split("T")[0]
-      : "";
-    const endStr = selectInfo.endStr
-      ? selectInfo.endStr.split("T")[0]
-      : startStr;
-
-    setSelectedEvent(null);
-    setSelectedStartDate(startStr);
-    setSelectedEndDate(endStr);
-    openModal();
-  };
-
   const handleEventClick = (clickInfo: EventClickInfo) => {
     const event = clickInfo.event;
-    if (event.url) {
-      window.open(event.url);
-      clickInfo.jsEvent?.preventDefault();
-      return;
-    }
-
-    const startStr = event.startStr ? event.startStr.split("T")[0] : "";
-    const endStr = event.endStr ? event.endStr.split("T")[0] : startStr;
-
+    
     setSelectedEvent({
       id: event.id,
       title: event.title,
@@ -124,44 +114,9 @@ const Calendar: React.FC = () => {
       end: event.endStr,
       extendedProps: { calendar: event.extendedProps?.calendar || "Primary" },
     });
-    setSelectedStartDate(startStr);
-    setSelectedEndDate(endStr);
+    setSelectedStartDate(event.startStr);
+    setSelectedEndDate(event.endStr);
     openModal();
-  };
-
-  const handleSaveEvent = (formData: EventFormData) => {
-    const titleVal =
-      formData.title.trim() || (selectedEvent ? "Event" : "New Event");
-    const startDateVal = formData.start;
-    const endDateVal = formData.end || startDateVal;
-    const levelVal = formData.level || "Primary";
-
-    if (selectedEvent) {
-      setEvents((prevEvents) =>
-        prevEvents.map((ev) =>
-          String(ev.id) === String(selectedEvent.id)
-            ? {
-                ...ev,
-                title: titleVal,
-                start: startDateVal,
-                end: endDateVal || startDateVal,
-                extendedProps: { calendar: levelVal },
-              }
-            : ev,
-        ),
-      );
-    } else {
-      const newEvent: CalendarEvent = {
-        id: Date.now().toString(),
-        title: titleVal,
-        start: startDateVal,
-        end: endDateVal || startDateVal,
-        allDay: true,
-        extendedProps: { calendar: levelVal },
-      };
-      setEvents((prevEvents) => [...prevEvents, newEvent]);
-    }
-    closeModal();
   };
 
   useEffect(() => {
@@ -184,6 +139,14 @@ const Calendar: React.FC = () => {
       window.removeEventListener("resize", checkMobile);
     };
   }, [isRtlLayout]);
+
+  if (isLoading) {
+    return (
+      <div className="flex h-150 items-center justify-center rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/3">
+        <span className="text-gray-500">Loading Calendar...</span>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -208,9 +171,8 @@ const Calendar: React.FC = () => {
           ]}
           initialView="dayGridMonth"
           direction={isRtlLayout ? "rtl" : "ltr"}
-          // Toolbar Header configuration
           headerToolbar={{
-            start: "prev,next addEventButton",
+            start: "prev,next",
             center: "title",
             end: "",
           }}
@@ -244,14 +206,7 @@ const Calendar: React.FC = () => {
               className:
                 "flex size-9! sm:size-10! p-0! items-center justify-center! rounded-lg! border! bg-transparent! border-gray-200! text-gray-700 hover:border-gray-200 hover:bg-gray-50! focus:shadow-none active:border-gray-200! active:bg-transparent! active:shadow-none! dark:border-gray-800! dark:text-gray-400 dark:hover:border-gray-800 dark:hover:bg-gray-900! dark:active:border-gray-800!",
             },
-            addEventButton: {
-              text: "Add Event +",
-              click: () => handleOpenAddModal(),
-              className:
-                "rounded-lg! border-0! bg-brand-500! px-3! sm:px-4! py-2! sm:py-2.5! text-xs! sm:text-sm! font-medium! text-white hover:bg-brand-600! focus:shadow-none! w-auto!",
-            },
           }}
-          // View configurations
           views={{
             multiMonthYear: {
               multiMonthMaxColumns: 3,
@@ -462,7 +417,6 @@ const Calendar: React.FC = () => {
                 "border-0! bg-gray-50! text-xs! font-medium! text-gray-500! dark:border-0! dark:bg-gray-900! dark:text-gray-400!",
             },
           }}
-          // Body configuration
           height="auto"
           borderless={true}
           viewClass="border-t! border-b-0! border-x-0! border-gray-200! bg-transparent! dark:border-gray-800! dark:bg-transparent!"
@@ -494,9 +448,8 @@ const Calendar: React.FC = () => {
               }
             });
           }}
-          selectable={true}
+          selectable={false}
           events={events}
-          select={handleDateSelect}
           eventClick={handleEventClick}
           eventContent={(eventInfo: EventDisplayInfo) => (
             <CalendarEventItem eventInfo={eventInfo} />
@@ -516,7 +469,8 @@ const Calendar: React.FC = () => {
         selectedEvent={selectedEvent}
         initialStartDate={selectedStartDate}
         initialEndDate={selectedEndDate}
-        onSave={handleSaveEvent}
+        onSave={() => {}} 
+        readonly={true} 
       />
     </div>
   );

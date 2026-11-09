@@ -1,4 +1,5 @@
 import SignInForm from "@/components/auth/SignInForm";
+import { setRequestLocale } from "next-intl/server";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -6,6 +7,13 @@ export const metadata: Metadata = {
   description: "This is a demonstration of extracting insights from the Movie Lens dataset using a Next.js admin dashboard template.",
 };
 
-export default function SignIn() {
+export default async function SignIn({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+
   return <SignInForm />;
 }
