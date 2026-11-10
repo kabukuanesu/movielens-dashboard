@@ -9,6 +9,8 @@ const ReactApexChart = dynamic(() => import("react-apexcharts"), {
   ssr: false,
 });
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
 interface GenreResult {
   name: string;
   movie_count: number;
@@ -27,7 +29,7 @@ export default function TopGenreByYear() {
     const fetchTopGenre = async () => {
       setIsLoading(true);
       try {
-        const res = await fetch(`http://127.0.0.1:8000/analytics/genres/top-genre-by-year/${selectedYear}`);
+        const res = await fetch(`${API_BASE}/analytics/genres/top-genre-by-year/${selectedYear}`);
         if (res.ok) {
           const json = await res.json();
           // If no movies released that year, the backend might return an empty object or null
@@ -74,7 +76,8 @@ export default function TopGenreByYear() {
               fontSize: "24px",
               fontWeight: 600,
               color: "#1D2939",
-              formatter: (val) => val,
+              // Explicitly typing the return as string fixes the TypeScript error
+              formatter: (val): string => String(val),
             },
             total: {
               show: true,
@@ -83,7 +86,8 @@ export default function TopGenreByYear() {
               fontSize: "14px",
               fontWeight: 500,
               color: "#6B7280",
-              formatter: () => data?.movie_count.toLocaleString() || "0",
+              // Explicitly typing the return as string fixes the TypeScript error
+              formatter: (): string => data?.movie_count.toLocaleString() || "0",
             },
           },
         },
@@ -100,12 +104,12 @@ export default function TopGenreByYear() {
     },
   };
 
-  // We use 100 as the inner value, and 0 as the empty track
+  // We use the movie count as the inner value, and 0 as the empty track
   const series = [data?.movie_count || 100, 0];
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 dark:border-gray-800 dark:bg-white/3 flex flex-col h-full">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+    <div className="flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 dark:border-gray-800 dark:bg-white/3">
+      <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
             {t("title") || "Top Genre by Year"}
@@ -127,7 +131,7 @@ export default function TopGenreByYear() {
         </select>
       </div>
 
-      <div className="flex-1 w-full relative flex flex-col items-center justify-center">
+      <div className="relative flex flex-1 flex-col items-center justify-center">
         {isLoading ? (
           <div className="flex h-full items-center justify-center text-gray-400">
             Loading chart...
@@ -141,7 +145,7 @@ export default function TopGenreByYear() {
               height={280}
             />
             <div className="mt-4 text-center">
-              <span className="inline-block px-4 py-1.5 rounded-full bg-brand-50 text-brand-600 text-sm font-semibold dark:bg-brand-500/15 dark:text-brand-400">
+              <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-sm font-semibold text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">
                 {data.name} ({data.movie_count.toLocaleString()} Movies)
               </span>
             </div>

@@ -113,6 +113,7 @@ export default function BasicTableOne() {
           <TableBody className="divide-y divide-gray-100 dark:divide-white/5">
             {users.length === 0 ? (
               <TableRow>
+                {/* This colSpan prop will now perfectly compile thanks to index.tsx changes */}
                 <TableCell colSpan={4} className="px-5 py-8 text-center text-gray-500">
                   No users found.
                 </TableCell>

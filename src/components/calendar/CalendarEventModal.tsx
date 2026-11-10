@@ -9,13 +9,14 @@ import {
   type EventFormData,
 } from "./types";
 
-export interface CalendarEventModalProps {
+interface CalendarEventModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedEvent: CalendarEvent | null;
-  initialStartDate?: string;
-  initialEndDate?: string;
-  onSave: (data: EventFormData) => void;
+  initialStartDate: string;
+  initialEndDate: string;
+  onSave: (data: EventFormData) => void; // Updated to match the types
+  readonly?: boolean; // Added to fix the TypeScript error
 }
 
 const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
@@ -25,6 +26,7 @@ const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
   initialStartDate = "",
   initialEndDate = "",
   onSave,
+  readonly = false, // Default to false
 }) => {
   const [eventTitle, setEventTitle] = useState("");
   const [eventStartDate, setEventStartDate] = useState("");
@@ -59,6 +61,8 @@ const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (readonly) return;
+
     const titleVal =
       eventTitle.trim() || (selectedEvent ? "Event" : "New Event");
     const startDateVal = eventStartDate;
@@ -85,11 +89,12 @@ const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
       >
         <div>
           <h5 className="modal-title mb-2 text-theme-xl font-semibold text-gray-800 lg:text-2xl dark:text-white/90">
-            {selectedEvent ? "Edit Event" : "Add Event"}
+            {selectedEvent ? "View/Edit Event" : "Add Event"}
           </h5>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Plan your next big moment: schedule or edit an event to stay on
-            track
+            {readonly 
+              ? "Viewing system details for this event." 
+              : "Plan your next big moment: schedule or edit an event to stay on track"}
           </p>
         </div>
 
@@ -106,7 +111,8 @@ const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
               type="text"
               value={eventTitle}
               onChange={(e) => setEventTitle(e.target.value)}
-              className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+              disabled={readonly}
+              className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-70 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 dark:disabled:bg-gray-800/50"
             />
           </div>
 
@@ -121,7 +127,9 @@ const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
                     className={`form-check form-check-${value} form-check-inline`}
                   >
                     <label
-                      className="form-check-label flex items-center text-sm text-gray-700 dark:text-gray-400"
+                      className={`form-check-label flex items-center text-sm text-gray-700 dark:text-gray-400 ${
+                        readonly ? "cursor-not-allowed opacity-70" : "cursor-pointer"
+                      }`}
                       htmlFor={`modal${key}`}
                     >
                       <span className="relative">
@@ -133,6 +141,7 @@ const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
                           id={`modal${key}`}
                           checked={eventLevel === key}
                           onChange={() => setEventLevel(key)}
+                          disabled={readonly}
                         />
                         <span className="box me-2 flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 dark:border-gray-700">
                           <span
@@ -164,7 +173,8 @@ const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
                 type="date"
                 value={eventStartDate}
                 onChange={(e) => setEventStartDate(e.target.value)}
-                className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent bg-none py-2.5 ps-4 pe-11 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                disabled={readonly}
+                className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent bg-none py-2.5 ps-4 pe-11 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-70 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 dark:disabled:bg-gray-800/50"
               />
             </div>
           </div>
@@ -182,7 +192,8 @@ const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
                 type="date"
                 value={eventEndDate}
                 onChange={(e) => setEventEndDate(e.target.value)}
-                className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent bg-none py-2.5 ps-4 pe-11 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                disabled={readonly}
+                className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent bg-none py-2.5 ps-4 pe-11 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-70 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 dark:disabled:bg-gray-800/50"
               />
             </div>
           </div>
@@ -196,15 +207,19 @@ const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
           >
             Close
           </button>
-          <button
-            type="submit"
-            className={cn(
-              "flex w-full justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 sm:w-auto",
-              selectedEvent ? "btn-update-event" : "btn-add-event",
-            )}
-          >
-            {selectedEvent ? "Update Changes" : "Add Event"}
-          </button>
+          
+          {/* Hide the submit button if it's readonly */}
+          {!readonly && (
+            <button
+              type="submit"
+              className={cn(
+                "flex w-full justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 sm:w-auto",
+                selectedEvent ? "btn-update-event" : "btn-add-event",
+              )}
+            >
+              {selectedEvent ? "Update Changes" : "Add Event"}
+            </button>
+          )}
         </div>
       </form>
     </Modal>
